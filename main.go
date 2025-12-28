@@ -47,8 +47,7 @@ func getApiStatus(key string) (string, error) {
 		slog.Error("could not form new request", "error", err)
 	}
 
-	req.Header.Add("X-API-Key", key)
-	// TODO: Fix Resp. 500 Status Code
+	req.Header.Add("c3nav_session", key)
 	resp, err := client.Do(req)
 
 	// Need to check explicitly for status code as err is only for ISO Layers
@@ -59,7 +58,7 @@ func getApiStatus(key string) (string, error) {
 		return "", errors.New(err)
 	} else if resp.StatusCode == 401 {
 		slog.Error("not authorized to access API", "statuscode", resp.StatusCode)
-		err := "cannot access API." + resp.Status
+		err := "cannot access API for " + statusAPI + ". Got " + resp.Status
 		return "", errors.New(err)
 	}
 
