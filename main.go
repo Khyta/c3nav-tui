@@ -53,9 +53,13 @@ func getApiStatus(key string) (string, error) {
 
 	// Need to check explicitly for status code as err is only for ISO Layers
 	// 1-6 (not 7)
-	if resp.StatusCode != 200 {
-		slog.Error("API didn't return a 200 OK.", "statuscode", resp.StatusCode)
+	if resp.StatusCode != 200 && resp.StatusCode != 401 {
+		slog.Error("API didn't return an expected response.", "statuscode", resp.StatusCode)
 		err := "unreachable authentication status check. " + resp.Status
+		return "", errors.New(err)
+	} else if resp.StatusCode == 401 {
+		slog.Error("not authorized to access API", "statuscode", resp.StatusCode)
+		err := "cannot access API." + resp.Status
 		return "", errors.New(err)
 	}
 
