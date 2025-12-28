@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-var apiEndpoint string = "https://38c3.c3nav.de/api/v2/"
+var apiEndpoint string = "https://39c3.c3nav.de/api/v2/"
 
 func main() {
 
