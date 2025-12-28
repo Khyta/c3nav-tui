@@ -6,16 +6,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 var apiEndpoint string = "https://39c3.c3nav.de/api/v2/"
 
-// TODO: attach method to struct to store session key data
 type sessionKey struct {
 	Key string `json:"key"`
 }
 
-func (k *sessionKey) getSessionKey() {
+func (key *sessionKey) getSessionKey() {
 	sessionURL := apiEndpoint + "auth/session/"
 	resp, err := http.Get(sessionURL)
 	if err != nil {
@@ -31,10 +31,11 @@ func (k *sessionKey) getSessionKey() {
 		return
 	}
 
-	err = json.Unmarshal(body, &k)
+	err = json.Unmarshal(body, &key)
 	if err != nil {
 		slog.Error("could not unmarshal body json.", "error", err)
 	}
+	key.Key = strings.TrimPrefix(key.Key, "session:")
 }
 
 func getApiStatus(key string) (string, error) {
@@ -47,11 +48,14 @@ func getApiStatus(key string) (string, error) {
 	}
 
 	req.Header.Add("X-API-Key", key)
+	// TODO: Fix Resp. 500 Status Code
 	resp, err := client.Do(req)
 
+	// Need to check explicitly for status code as err is only for ISO Layers
+	// 1-6 (not 7)
 	if resp.StatusCode != 200 {
 		slog.Error("API didn't return a 200 OK.", "statuscode", resp.StatusCode)
-		err := "unreachable API. " + resp.Status
+		err := "unreachable authentication status check. " + resp.Status
 		return "", errors.New(err)
 	}
 
@@ -75,6 +79,7 @@ func main() {
 	var s sessionKey
 	s.getSessionKey()
 	slog.Info("got session key.", "key", s.Key)
+
 	apiStatus, err := getApiStatus(s.Key)
 	if err != nil {
 		slog.Error("could not get API status.", "error", err)
