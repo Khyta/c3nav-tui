@@ -20,12 +20,12 @@ type ApiStatus struct {
 	Scopes   []string `json:"scopes"`
 }
 
-func (key *SessionKey) Fetch() {
+func (key *SessionKey) Fetch() error {
 	sessionURL := apiEndpoint + "auth/session/"
 	resp, err := http.Get(sessionURL)
 	if err != nil {
 		slog.Error("response broken", "error", err)
-		return
+		return errors.New("http get response is broken")
 	}
 	slog.Info("initial response.", "status", resp.Status)
 	defer resp.Body.Close()
@@ -33,15 +33,15 @@ func (key *SessionKey) Fetch() {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		slog.Error("could not read response.", "error", err)
-		return
+		return errors.New("could not read response as IO stream")
 	}
 
 	err = json.Unmarshal(body, &key)
 	if err != nil {
 		slog.Error("could not unmarshal body json.", "error", err)
+		return errors.New("unable to unmarshal body json.")
 	}
-	// Trims the session part from the key to get the "clean" key out.
-	// key.Key = strings.TrimPrefix(key.Key, "session:")
+	return nil
 }
 
 func (status *ApiStatus) Check(key string) error {
@@ -92,14 +92,18 @@ func (status *ApiStatus) Check(key string) error {
 func main() {
 
 	var session SessionKey
-	session.Fetch()
+	err := session.Fetch()
+	if err != nil {
+		slog.Error("unable to get session key.")
+		return
+	}
 	slog.Info("got session key.", "key", session.Key)
 
 	var status ApiStatus
-	err := status.Check(session.Key)
+	err = status.Check(session.Key)
 	if err != nil {
 		slog.Error("could not get API status.", "error", err)
 		return
 	}
-	slog.Info("get API status.", "status", status.KeyType)
+	slog.Info("got API status.", "status", status.KeyType)
 }
