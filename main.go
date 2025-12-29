@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 )
 
 var apiEndpoint string = "https://39c3.c3nav.de/api/v2/"
@@ -35,7 +34,8 @@ func (key *sessionKey) getSessionKey() {
 	if err != nil {
 		slog.Error("could not unmarshal body json.", "error", err)
 	}
-	key.Key = strings.TrimPrefix(key.Key, "session:")
+	// Trims the session part from the key to get the "clean" key out.
+	// key.Key = strings.TrimPrefix(key.Key, "session:")
 }
 
 func getApiStatus(key string) (string, error) {
@@ -47,17 +47,18 @@ func getApiStatus(key string) (string, error) {
 		slog.Error("could not form new request", "error", err)
 	}
 
-	req.Header.Add("c3nav_session", key)
+	// Critical Header for Auth recognition with the session key
+	req.Header.Add("X-API-Key", key)
 	resp, err := client.Do(req)
 
 	// Need to check explicitly for status code as err is only for ISO Layers
 	// 1-6 (not 7)
 	if resp.StatusCode != 200 && resp.StatusCode != 401 {
-		slog.Error("API didn't return an expected response.", "statuscode", resp.StatusCode)
+		slog.Error("API didn't return an expected response.", "statuscode", resp.StatusCode, "key", key)
 		err := "unreachable authentication status check. " + resp.Status
 		return "", errors.New(err)
 	} else if resp.StatusCode == 401 {
-		slog.Error("not authorized to access API", "statuscode", resp.StatusCode)
+		slog.Error("not authorized to access API", "statuscode", resp.StatusCode, "key", key)
 		err := "cannot access API for " + statusAPI + ". Got " + resp.Status
 		return "", errors.New(err)
 	}
