@@ -25,7 +25,7 @@ func (key *SessionKey) Fetch() error {
 	resp, err := http.Get(sessionURL)
 	if err != nil {
 		slog.Error("response broken", "error", err)
-		return errors.New("http get response is broken")
+		return err
 	}
 	slog.Info("initial response.", "status", resp.Status)
 	defer resp.Body.Close()
@@ -33,13 +33,13 @@ func (key *SessionKey) Fetch() error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		slog.Error("could not read response.", "error", err)
-		return errors.New("could not read response as IO stream")
+		return err
 	}
 
 	err = json.Unmarshal(body, &key)
 	if err != nil {
 		slog.Error("could not unmarshal body json.", "error", err)
-		return errors.New("unable to unmarshal body json.")
+		return err
 	}
 	return nil
 }
