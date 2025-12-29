@@ -10,11 +10,17 @@ import (
 
 var apiEndpoint string = "https://39c3.c3nav.de/api/v2/"
 
-type sessionKey struct {
+type SessionKey struct {
 	Key string `json:"key"`
 }
 
-func (key *sessionKey) getSessionKey() {
+type ApiStatus struct {
+	KeyType  string   `json:"key_type"`
+	Readonly bool     `json:"readonly"`
+	Scopes   []string `json:"scopes"`
+}
+
+func (key *SessionKey) Fetch() {
 	sessionURL := apiEndpoint + "auth/session/"
 	resp, err := http.Get(sessionURL)
 	if err != nil {
@@ -38,7 +44,7 @@ func (key *sessionKey) getSessionKey() {
 	// key.Key = strings.TrimPrefix(key.Key, "session:")
 }
 
-func getApiStatus(key string) (string, error) {
+func (status *ApiStatus) Check(key string) error {
 	statusAPI := apiEndpoint + "auth/status"
 	client := &http.Client{}
 
@@ -56,38 +62,44 @@ func getApiStatus(key string) (string, error) {
 	if resp.StatusCode != 200 && resp.StatusCode != 401 {
 		slog.Error("API didn't return an expected response.", "statuscode", resp.StatusCode, "key", key)
 		err := "unreachable authentication status check. " + resp.Status
-		return "", errors.New(err)
+		return errors.New(err)
 	} else if resp.StatusCode == 401 {
 		slog.Error("not authorized to access API", "statuscode", resp.StatusCode, "key", key)
 		err := "cannot access API for " + statusAPI + ". Got " + resp.Status
-		return "", errors.New(err)
+		return errors.New(err)
 	}
 
 	if err != nil {
 		slog.Error("could not complete request with header.", "error", err)
-		return "", errors.New("could not complete request")
+		return errors.New("could not complete request")
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		slog.Error("could not read response.", "error", err)
-		return "", errors.New("could not read response")
+		return errors.New("could not read response")
 	}
 
-	return string(body[:]), nil
+	err = json.Unmarshal(body, &status)
+	if err != nil {
+		slog.Error("could not unmarshal body json response.", "error", err)
+		return errors.New("could not unmarshal body json")
+	}
+	return nil
 }
 
 func main() {
 
-	var s sessionKey
-	s.getSessionKey()
-	slog.Info("got session key.", "key", s.Key)
+	var session SessionKey
+	session.Fetch()
+	slog.Info("got session key.", "key", session.Key)
 
-	apiStatus, err := getApiStatus(s.Key)
+	var status ApiStatus
+	err := status.Check(session.Key)
 	if err != nil {
 		slog.Error("could not get API status.", "error", err)
 		return
 	}
-	slog.Info("get API status.", "status", apiStatus)
+	slog.Info("get API status.", "status", status.KeyType)
 }
