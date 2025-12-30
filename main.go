@@ -28,6 +28,11 @@ func (key *SessionKey) Fetch() error {
 		return err
 	}
 	slog.Info("initial response.", "status", resp.Status)
+	if resp.StatusCode != 200 {
+		slog.Error("unexpected status code.", "status", resp.StatusCode)
+		errmsg := "unexpected status code. cannot fetch session auth cookie. " + resp.Status
+		return errors.New(errmsg)
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -50,7 +55,6 @@ func (status *ApiStatus) Check(key string) error {
 		return err
 	}
 
-	// Parse only when needed
 	return json.Unmarshal(raw, status)
 }
 
@@ -107,7 +111,7 @@ func main() {
 	var session SessionKey
 	err := session.Fetch()
 	if err != nil {
-		slog.Error("unable to get session key.")
+		slog.Error("unable to get session key.", "error", err)
 		return
 	}
 	slog.Info("got session key.", "key", session.Key)
