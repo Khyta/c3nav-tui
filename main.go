@@ -45,10 +45,26 @@ func (key *SessionKey) Fetch() error {
 }
 
 func (status *ApiStatus) Check(key string) error {
-	statusAPI := apiEndpoint + "auth/status"
+	raw, err := apiRequestRaw(key, "auth/status")
+	if err != nil {
+		return err
+	}
+
+	// Parse only when needed
+	return json.Unmarshal(raw, status)
+}
+
+// func getLocation(key SessionKey) {
+// 	locationsEndpoint := apiEndpoint + "/map/locations/"
+
+// }
+
+func apiRequestRaw(key string, specificEndpoint string) (json.RawMessage, error) {
+
+	url := apiEndpoint + specificEndpoint
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", statusAPI, nil)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		slog.Error("could not form new request", "error", err)
 	}
@@ -59,34 +75,31 @@ func (status *ApiStatus) Check(key string) error {
 
 	// Need to check explicitly for status code as err is only for ISO Layers
 	// 1-6 (not 7)
-	if resp.StatusCode != 200 && resp.StatusCode != 401 {
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 401 {
+			slog.Error("not authorized to access API", "statuscode", resp.StatusCode, "key", key)
+			err := "cannot access API for " + url + ". Got " + resp.Status
+			return nil, errors.New(err)
+		}
 		slog.Error("API didn't return an expected response.", "statuscode", resp.StatusCode, "key", key)
 		err := "unreachable authentication status check. " + resp.Status
-		return errors.New(err)
-	} else if resp.StatusCode == 401 {
-		slog.Error("not authorized to access API", "statuscode", resp.StatusCode, "key", key)
-		err := "cannot access API for " + statusAPI + ". Got " + resp.Status
-		return errors.New(err)
+		return nil, errors.New(err)
 	}
 
 	if err != nil {
 		slog.Error("could not complete request with header.", "error", err)
-		return errors.New("could not complete request")
+		return nil, errors.New("could not complete request")
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	var rawMessage json.RawMessage
+	err = json.NewDecoder(resp.Body).Decode(&rawMessage)
 	if err != nil {
-		slog.Error("could not read response.", "error", err)
-		return errors.New("could not read response")
+		slog.Error("could not decode raw message", "error", err)
+		return nil, errors.New("could not read response")
 	}
 
-	err = json.Unmarshal(body, &status)
-	if err != nil {
-		slog.Error("could not unmarshal body json response.", "error", err)
-		return errors.New("could not unmarshal body json")
-	}
-	return nil
+	return rawMessage, nil
 }
 
 func main() {
@@ -106,4 +119,9 @@ func main() {
 		return
 	}
 	slog.Info("got API status.", "status", status.KeyType)
+
+	// TODO: Get locations (slim)
+	//	- Parse locations
+	// 	- Provide location description
+	// TODO: Get regular Updates for auth with tileserver
 }
